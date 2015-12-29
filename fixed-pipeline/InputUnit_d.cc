@@ -89,11 +89,13 @@ InputUnit_d::wakeup()
 
 		if( m_router->GetSmartCoordinate() && m_router->GetSmartCoordinate()->isSmartFlit(t_flit,m_router->getID(),m_id,vc) )
 		{
+			/*
 			inform("router %d, inputunit:%d, invc:%d, flit_id: %d, is_head:%d is inserted into smart_shadow_buffer",
 					m_router->getID(), m_id, vc, t_flit->get_id(), 
 					(t_flit->get_type()==HEAD_) || ( t_flit->get_type() == HEAD_TAIL_ )
 					);
-					
+			*/
+			
 			int inport_vc_index = m_id * m_num_vcs + vc;
 			if( ( t_flit->get_type() == HEAD_ ) || ( t_flit->get_type() == HEAD_TAIL_ ) )
 			{
@@ -102,15 +104,10 @@ InputUnit_d::wakeup()
 				m_router->m_smart_dest_router_index[inport_vc_index] = m_router->GetSmartCoordinate()->getFlitSmartDestRouterIndex(t_flit);
 				m_router->m_smart_state[inport_vc_index] = smart_vc_wait_for_vc_grant;
 			}
-			if( m_router->getID() == 57 && m_id == 5 && vc==9 && t_flit->get_id() == 1)
-			{
-				inform("for checking mem error!");
-				cout<<"pnt:"<<(m_router->m_smart_in_buffer[inport_vc_index])<<endl;
-			}
 			
 			m_router->smartLinkActivate();
-			if(inport_vc_index >= m_router->m_smart_in_buffer.size() )
-				fatal("indexing to inport_VC:%d >= max:%d",inport_vc_index,m_router->m_smart_in_buffer.size());
+			
+			assert(inport_vc_index<m_router->m_smart_in_buffer.size() && inport_vc_index >= 0 )
 			
 			m_router->m_smart_in_buffer[inport_vc_index]->insert(t_flit);
 		}

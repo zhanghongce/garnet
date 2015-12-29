@@ -66,9 +66,11 @@ SMART_Coordinate:: SMART_Coordinate(const Params *p)
 		fatal("Size mismatch of SMART router and route info");
 	
 	int router_num = m_router_list.size();
+/*
 	inform("router_num:%d",router_num);
 	for(int i=0;i<router_num;i++)
 		inform("%d ",m_router_list[i]->getID());
+		*/
 	
 	m_smart_router_in_buffers.resize(router_num);
 	m_output_router_input_unit.resize(router_num);
@@ -244,10 +246,10 @@ void SMART_Coordinate::VCAllocate()
 						Cur_Router->m_smart_credit[smart_buffer_index] = vc_credits_for_smart_in_unit[destRIndex][ovc_iter];
 						
 						// debug inform here
-						inform("grant ovc:%d at DestId:%d to input:%d,vc:%d @srcID:%d", ovc_iter, 
+						/* inform("grant ovc:%d at DestId:%d to input:%d,vc:%d @srcID:%d", ovc_iter, 
 							router_index_to_id(destRIndex), smart_buffer_index/num_vcs,
 							smart_buffer_index%num_vcs, router_index_to_id(router_id)
-							);
+							);*/
 						
 						out_vc_found = true;
 						break;
@@ -329,7 +331,7 @@ void inline SMART_Coordinate::sendAFlit(Router_d * Cur_Router, int inport_id, in
 		iunit->increment_credit(vc_id, false,curCycle() );
 	}
 	
-	
+	/*
 	inform("Link Occupied to ovc:%d at DestId:%d by input:%d,vc:%d @srcID:%d", 
 			output_vc, router_index_to_id(destRIndex), 
 			smart_buffer_index/num_vcs,
@@ -338,7 +340,7 @@ void inline SMART_Coordinate::sendAFlit(Router_d * Cur_Router, int inport_id, in
 			
 	inform("flit_id: %d, is_head:%d, is_tail:%d is tranversing smart link",
 	 t_flit->get_id(), (t_flit->get_type()==HEAD_) || ( t_flit->get_type() == HEAD_TAIL_ ),
-	 (t_flit->get_type()==TAIL_) || ( t_flit->get_type() == HEAD_TAIL_ )	);
+	 (t_flit->get_type()==TAIL_) || ( t_flit->get_type() == HEAD_TAIL_ )	); */
 }
 
 
@@ -410,9 +412,10 @@ void SMART_Coordinate::linkAllocte()
 		if(LA_last_inport_per_router[router_id] >= Cur_Router->get_num_inports() )
 			LA_last_inport_per_router[router_id] = 0;
 	#else
+		/*
 		warn("changing LA_last_vc_round_per_router[%d] %d -> %d",router_id, LA_last_vc_round_per_router[router_id], vc_id + 2);
 		warn("changing LA_last_inport_per_router  [%d] %d -> %d",router_id, LA_last_inport_per_router  [router_id], inport_id);
-	
+		*/
 		LA_last_vc_round_per_router[router_id] = vc_id + 2;
 		if(LA_last_vc_round_per_router[router_id] >= num_vcs)
 			LA_last_vc_round_per_router[router_id] = 0;

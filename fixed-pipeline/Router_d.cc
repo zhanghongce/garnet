@@ -98,7 +98,7 @@ void Router_d::AddSmartInputUnit(flitBuffer_d * coor_fb)
 		fatal("Assign duplicate input unit to router!");
 		
     int port_num = m_input_unit.size();
-	inform("adding smart unit:%d @router%d",port_num, m_id);
+	// inform("adding smart unit:%d @router%d",port_num, m_id);
     SmartInputUnit_d *input_unit = new SmartInputUnit_d(port_num, this);
     
     //input_unit->set_in_link(in_link);
@@ -145,7 +145,7 @@ Router_d::addInPort(NetworkLink_d *in_link, CreditLink_d *credit_link)
 {
     int port_num = m_input_unit.size();
     InputUnit_d *input_unit = new InputUnit_d(port_num, this);
-	inform("adding port #%d on router%d",port_num,m_id);
+	// inform("adding port #%d on router%d",port_num,m_id);
 
     input_unit->set_in_link(in_link);
     input_unit->set_credit_link(credit_link);

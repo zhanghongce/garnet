@@ -57,11 +57,12 @@ SmartInputUnit_d::wakeup()
 		t_flit->advance_stage(LT_,m_router->curCycle() );
 		
         int vc = t_flit->get_vc();
-				
+		
+/*		
 		inform("router %d, smart_inputunit:%d, invc:%d, flit_id: %d, is_head:%d is received",
 					m_router->getID(), m_id, vc, t_flit->get_id(), 
 					(t_flit->get_type()==HEAD_) || ( t_flit->get_type() == HEAD_TAIL_ )  )
-					;
+					;*/
 					
 		if( smart_coor_pnt->isSmartFlit(t_flit,m_router->getID() ,m_id,vc) )
 		{
@@ -82,15 +83,15 @@ SmartInputUnit_d::wakeup()
 			if ((t_flit->get_type() == HEAD_) ||  (t_flit->get_type() == HEAD_TAIL_)) 
 			{
 
-
+				/*
 				if( m_vcs[vc]->get_state() != IDLE_ )
 					{
 						warn("smart inputunit:%d router:%d, vc:%d is not released", m_id, m_router->getID(), vc);
 					}
-
+				*/
 				
 				assert(m_vcs[vc]->get_state() == IDLE_);
-				inform("First occupy inputunit:%d router:%d, vc:%d ", m_id, m_router->getID(), vc);
+				//inform("First occupy inputunit:%d router:%d, vc:%d ", m_id, m_router->getID(), vc);
 					
 				// Do the route computation for this vc, and this will schedule for VCalloc
 				// No need to do it twice 
