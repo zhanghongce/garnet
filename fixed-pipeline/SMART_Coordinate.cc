@@ -173,9 +173,11 @@ uint32_t SMART_Coordinate::router_index_to_id(int index)
 void SMART_Coordinate::init()
 {
 	// this is self init
-	// nothing need to do
+	// nothing need to do, except initalizin stats
 	linkIdleCycle = 0;
 	linkWaitforVACycle = 0;
+	
+	
 }
 // this depends on the number of input units
 void SMART_Coordinate::init(uint32_t routerID, GarnetNetwork_d *Network_ptr) // called by each router to allocate its arb resources
@@ -298,20 +300,65 @@ bool SMART_Coordinate::waiting_for_VA_grant()
 	return false;
 }
 
+void inline SMART_Coordinate::sendAFlit(Router_d * Cur_Router, int inport_id, int vc_id, int smart_buffer_index) // only source specified, destination could be determined
+{
+	int destRIndex = Cur_Router->m_smart_dest_router_index[smart_buffer_index];
+	int output_vc = Cur_Router->m_smart_out_vc[smart_buffer_index];
+	
+	flit_d * t_flit = Cur_Router->m_smart_in_buffer[smart_buffer_index]->getTopFlit();
+	t_flit->set_vc(output_vc);
+	t_flit->advance_stage(SMART_LT_, curCycle()+Cycles(1) ); // FIXME: time incorrect!!!
+	t_flit->set_time( curCycle()+Cycles(1) );
+	m_smart_router_in_buffers[destRIndex]->insert(t_flit);
+	m_output_router_input_unit[destRIndex]->scheduleEventAbsolute( curCycle()+Cycles(1) );
+	
+	vc_credits_for_smart_in_unit[destRIndex][output_vc] --;		
+	Cur_Router->m_smart_credit[smart_buffer_index] = vc_credits_for_smart_in_unit[destRIndex][output_vc];
+	
+	// update backward credit
+	InputUnit_d * iunit = Cur_Router->get_inputUnit_ref()[inport_id];
+	assert(iunit != safe_cast<InputUnit_d *>(Cur_Router->getSmartInputUnit()) );
+	
+	if(t_flit->get_type() == TAIL_ ||  t_flit->get_type() == HEAD_TAIL_ )
+	{
+		iunit->increment_credit(vc_id, true,curCycle() );
+		Cur_Router->m_smart_state[smart_buffer_index] = smart_vc_idle;
+	}
+	else
+	{
+		iunit->increment_credit(vc_id, false,curCycle() );
+	}
+	
+	
+	inform("Link Occupied to ovc:%d at DestId:%d by input:%d,vc:%d @srcID:%d", 
+			output_vc, router_index_to_id(destRIndex), 
+			smart_buffer_index/num_vcs,
+			smart_buffer_index%num_vcs, Cur_Router->getID()
+			);
+			
+	inform("flit_id: %d, is_head:%d, is_tail:%d is tranversing smart link",
+	 t_flit->get_id(), (t_flit->get_type()==HEAD_) || ( t_flit->get_type() == HEAD_TAIL_ ),
+	 (t_flit->get_type()==TAIL_) || ( t_flit->get_type() == HEAD_TAIL_ )	);
+}
+
+
 void SMART_Coordinate::linkAllocte()
 {
 	
 	int n_router = m_router_list.size();
 	
 	int router_id = LA_last_router_round;
-	bool linkUsed = false;
-	for(int router_iter=0;router_iter<n_router;router_iter++)
+	int flit_sent = 0;
+	
+	vector<bool> linkOccupied(n_router,false);
+	
+	for(int router_iter=0; router_iter<n_router; router_iter++)
 	{
 		Router_d * Cur_Router = m_router_list[router_id];
 		Cycles self_cycle = curCycle();
 		Cycles router_cycle = Cur_Router->curCycle();
 		if( self_cycle != router_cycle )
-			warn("Smart Coordinate cycle mismatch between smart and router!");
+			fatal("Smart Coordinate cycle mismatch between smart and router!");
 		
 		
 		int vc_id = LA_last_vc_round_per_router[router_id];
@@ -326,49 +373,20 @@ void SMART_Coordinate::linkAllocte()
 			if(Cur_Router->m_smart_state[smart_buffer_index] == smart_vc_granted && ! Cur_Router->m_smart_in_buffer[smart_buffer_index]->isEmpty())
 			{
 				// update smart_In_unit_credit
-				int destRIndex = Cur_Router->m_smart_dest_router_index[smart_buffer_index];
 				int output_vc = Cur_Router->m_smart_out_vc[smart_buffer_index];
+				int destRIndex = Cur_Router->m_smart_dest_router_index[smart_buffer_index];
+				
 				Cur_Router->m_smart_credit[smart_buffer_index] = vc_credits_for_smart_in_unit[destRIndex][output_vc];
-				if( Cur_Router->m_smart_credit[smart_buffer_index] > 0 )
+				
+				if( Cur_Router->m_smart_credit[smart_buffer_index] > 0 && !intersect(linkOccupied,router_id,destRIndex) )
 				{
 					// ok to send
-					flit_d * t_flit = Cur_Router->m_smart_in_buffer[smart_buffer_index]->getTopFlit();
-					t_flit->set_vc(output_vc);
-					t_flit->advance_stage(SMART_LT_, Cur_Router->curCycle()+Cycles(1) ); // FIXME: time incorrect!!!
-					t_flit->set_time( Cur_Router->curCycle()+Cycles(1) );
-					m_smart_router_in_buffers[destRIndex]->insert(t_flit);
-					m_output_router_input_unit[destRIndex]->scheduleEventAbsolute(Cur_Router->curCycle()+Cycles(1));
+					setOccupied(linkOccupied,router_id,destRIndex);
 					
-					vc_credits_for_smart_in_unit[destRIndex][output_vc] --;		
-					Cur_Router->m_smart_credit[smart_buffer_index] = vc_credits_for_smart_in_unit[destRIndex][output_vc];
+					sendAFlit(Cur_Router, inport_id,vc_id, smart_buffer_index );
 					
-					// update backward credit
-					InputUnit_d * iunit = Cur_Router->get_inputUnit_ref()[inport_id];
-					assert(iunit != safe_cast<InputUnit_d *>(Cur_Router->getSmartInputUnit()) );
+					flit_sent ++;
 					
-					if(t_flit->get_type() == TAIL_ ||  t_flit->get_type() == HEAD_TAIL_ )
-					{
-						iunit->increment_credit(vc_id, true,router_cycle);
-						Cur_Router->m_smart_state[smart_buffer_index] = smart_vc_idle;
-					}
-					else
-					{
-						iunit->increment_credit(vc_id, false,router_cycle);
-					}
-					
-					linkUsed = true;
-
-					
-					
-					inform("Link Occupied to ovc:%d at DestId:%d by input:%d,vc:%d @srcID:%d", 
-							output_vc, router_index_to_id(destRIndex), 
-							smart_buffer_index/num_vcs,
-							smart_buffer_index%num_vcs, router_index_to_id(router_id)
-							);
-					inform("flit_id: %d, is_head:%d, is_tail:%d is tranversing smart link",
-					 t_flit->get_id(), (t_flit->get_type()==HEAD_) || ( t_flit->get_type() == HEAD_TAIL_ ),
-					 (t_flit->get_type()==TAIL_) || ( t_flit->get_type() == HEAD_TAIL_ )	);
-					 
 					break;
 				}
 			}	
@@ -401,13 +419,11 @@ void SMART_Coordinate::linkAllocte()
 		LA_last_inport_per_router[router_id] = inport_id;
 	#endif		
 		
-		if(linkUsed)
-			break;
 		router_id ++;
 		if(router_id>=n_router)
 			router_id = 0;
 	}
-	if(!linkUsed)
+	if(flit_sent == 0)
 	{
 		// stats: +1
 		linkIdleCycle ++;
@@ -417,15 +433,14 @@ void SMART_Coordinate::linkAllocte()
 			linkWaitforVACycle ++;
 		}
 	}
+	assert(flit_sent<n_router*2);
 	
-#ifdef	THE_OTHER_VA_METHOD
+	FlitPerCycle[flit_sent] ++;
+	
 	LA_last_router_round ++; // next time start from the next router // = router_id
 	if(LA_last_router_round >= m_router_list.size() )
 		LA_last_router_round = 0;
-#else
-	warn("changing LA_last_router_round %d -> %d, grantLink:%d",LA_last_router_round,router_id,linkUsed);
-	LA_last_router_round = router_id;
-#endif
+
 }
 void SMART_Coordinate::wakeup()
 {
@@ -483,12 +498,37 @@ void SMART_Coordinate::regStats()
 {
 	linkIdleCycle.name(name()+".linkIdleCycle").flags(Stats::nonan);
 	linkWaitforVACycle.name(name()+".linkWaitforVACycle").flags(Stats::nonan);	
+	FlitPerCycle.init( m_router_list.size()*2 ).name(name() + ".cycles_with_diff_flits").flags(Stats::pdf | Stats::total | Stats::oneline);
 }
 
 SMART_Coordinate::~SMART_Coordinate()
 {
 	deletePointers(m_smart_router_in_buffers);
 	//cout<<"smart stats linkIdleCycle: "<<linkIdleCycle<<"\tlinkWaitForVA: "<<linkWaitforVACycle<<endl;
+}
+
+
+bool SMART_Coordinate::intersect(vector<bool> linkOccupied, int srcIndex, int destIndex)
+{
+	assert(srcIndex  >=0 && srcIndex  < linkOccupied.size() );
+	assert(destIndex >=0 && destIndex < linkOccupied.size() );	
+	for (int iter = min(srcIndex,destIndex) ; iter <= max(srcIndex,destIndex); ++iter)
+	{
+		if( linkOccupied[iter] )
+			return true;
+	}
+	return false;
+}
+
+void SMART_Coordinate::setOccupied( vector<bool> linkOccupied, int srcIndex, int destIndex )
+{
+	assert(srcIndex  >=0 && srcIndex  < linkOccupied.size() );
+	assert(destIndex >=0 && destIndex < linkOccupied.size() );	
+	for (int iter = min(srcIndex,destIndex) ; iter <= max(srcIndex,destIndex); ++iter)
+	{
+		assert( !linkOccupied[iter] );
+		linkOccupied[iter] = true;
+	}
 }
 
 

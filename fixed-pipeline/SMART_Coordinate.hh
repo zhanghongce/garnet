@@ -130,11 +130,18 @@ class SMART_Coordinate : public ClockedObject, public Consumer
 	// routing use
 	int getSmartConfigIndexOfDestRoute(int rID, int &iter_post);
 	
+	// send a flit
+	void inline sendAFlit(Router_d * Cur_Router, int inport_id, int vc_id, int smart_buffer_index);
 	
 	//stats
 	Stats::Scalar linkIdleCycle;
 	Stats::Scalar linkWaitforVACycle;
+	Stats::Vector FlitPerCycle;
 	bool waiting_for_VA_grant();
+	// helper functions
+	
+	void setOccupied( std::vector<bool> linkOccupied, int srcIndex, int destIndex );
+	bool intersect( std::vector<bool> linkOccupied, int srcIndex, int destIndex);
 };
 
 #endif // __MEM_RUBY_NETWORK_GARNET_FIXED_PIPELINE_SMART_COORDINATE_HH__

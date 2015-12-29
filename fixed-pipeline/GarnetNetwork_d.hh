@@ -103,6 +103,7 @@ class GarnetNetwork_d : public BaseGarnetNetwork
     Stats::Vector m_average_vc_load;
 	
 	void GarnetSmartCreate();
+	
 };
 
 inline std::ostream&
