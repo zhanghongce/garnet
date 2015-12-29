@@ -1,0 +1,239 @@
+/*
+ * Copyright (c) 2015 Princeton University
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Authors: Hongce Zhang
+ */
+ 
+#include "base/stl_helpers.hh"
+#include "mem/ruby/network/garnet/fixed-pipeline/InputUnit_d.hh"
+#include "mem/ruby/network/garnet/fixed-pipeline/Router_d.hh"
+
+using namespace std;
+using m5::stl_helpers::deletePointers;
+
+SMART_Coordinate:: SMART_Coordinate(const Params *p)
+    : Consumer(p)
+{
+	//number of routers in group
+	// router's input buffer
+	for (vector<Router_d *>::const_iterator i = p->r_list.begin();
+         i != p->routers.end(); ++i) {
+        Router* router = safe_cast<Router_d *>(*i);
+        m_router_list.push_back(router);
+		router_seq.push_back(router->m_id);
+    }
+	
+}
+
+
+int SMART_Coordinate::router_id_to_index(uint32_t rID)
+{
+	vector<uint32_t>::iterator r_index= find(router_seq.begin(),router_seq.end(),rID);
+	if( r_index ==  router_seq.end() )
+		fatal("rID : %d 's index not found!",rID);
+	return r_index;
+}
+
+void SMART_Coordinate::init(uint32_t routerID) // called by each router to allocate its arb resources
+{
+	
+}
+
+void SMART_Coordinate::VCAllocate()
+{
+	int n_router = m_router_list.size();
+	
+	int router_id = VCA_last_router_round;
+	for(int router_iter=0;router_iter<n_router;router_iter++)
+	{
+		Router_d * Cur_Router = m_router_list[router_id];
+		
+		
+		int vc_id = VCA_last_vc_round_per_router[router_id];
+		int inport_id = VCA_last_inport_per_router[router_id];
+		int total_fb_size = Cur_Router->m_smart_in_buffer.size();
+		
+		for(int vc_iport_iter = 0;vc_iport_iter < total_fb_size;vc_iport_iter ++)
+		{
+			
+			int smart_buffer_index = inport_id * num_vcs + vc_id;
+			bool out_vc_found = false;
+			// choose a grant need
+			if(Cur_Router->m_smart_state[smart_buffer_index] == smart_vc_wait_for_vc_grant)
+			{
+				// choose an out vc
+				int destRIndex = Cur_Router->m_smart_dest_router_index[smart_buffer_index];
+				int o_vnet = get_vnet(vc_id);
+				for(int ovc_iter = o_vnet;ovc_iter <o_vnet + num_vcs_per_vnet;ovc_iter++)
+				{
+					if(ovc_free[destRIndex][ovc_iter])
+					{
+						// then we allocate [destRIndex].[ovc_iter] to Cur_Router's
+						ovc_free[destRIndex][ovc_iter] = false;
+						Cur_Router->m_smart_state[smart_buffer_index] = smart_vc_granted;
+						Cur_Router->m_smart_out_vc[smart_buffer_index] = ovc_iter;
+						Cur_Router->m_smart_credit[smart_buffer_index] = vc_credits_for_smart_in_unit[destRIndex][ovc_iter];
+						
+						// debug inform here
+						// inform("");
+						
+						out_vc_found = true;
+						break;
+					}
+				}
+			}
+			
+			if( out_vc_found )
+				break;
+			
+			vc_id ++;
+			if(vc_id >= num_vcs) 
+			{
+				vc_id = 0;
+				inport_id ++;
+				if(inport_id >= Cur_Router->get_num_inports() )
+					inport_id = 0;
+			}
+		}
+		VCA_last_vc_round_per_router[router_id] ++; // = vc_id
+		VCA_last_inport_per_router[router_id] ++; // = inport_id
+		
+		
+		router_id ++;
+		if(router_id>=n_router)
+			router_id = 0;
+	}
+	VCA_last_router_round ++; // next time start from the next router
+}
+
+
+void SMART_Coordinate::linkAllocte()
+{
+	
+	int n_router = m_router_list.size();
+	
+	int router_id = LA_last_router_round;
+	bool linkUsed = false;
+	for(int router_iter=0;router_iter<n_router;router_iter++)
+	{
+		Router_d * Cur_Router = m_router_list[router_id];
+		Cycles router_cycle = Cur_Router->curCycle();
+		
+		
+		int vc_id = LA_last_vc_round_per_router[router_id];
+		int inport_id = LA_last_inport_per_router[router_id];
+		int total_fb_num = Cur_Router->m_smart_in_buffer.size(); // num_vcs * router's inport # // we need to assert this somewhere
+		
+		for(int vc_iport_iter = 0;vc_iport_iter < total_fb_num;vc_iport_iter ++)
+		{
+			
+			int smart_buffer_index = inport_id * num_vcs + vc_id;
+			// choose a grant need
+			if(Cur_Router->m_smart_state[smart_buffer_index] == smart_vc_granted )
+			{
+				// update smart_In_unit_credit
+				int destRIndex = Cur_Router->m_smart_dest_router_index[smart_buffer_index];
+				int output_vc = Cur_Router->m_smart_out_vc[smart_buffer_index];
+				Cur_Router->m_smart_credit[smart_buffer_index] = vc_credits_for_smart_in_unit[destRIndex][output_vc]
+				if( Cur_Router->m_smart_credit[smart_buffer_index] > 0 )
+				{
+					// ok to send
+					flit_d * t_flit = Cur_Router->m_smart_in_buffer[smart_buffer_index]->getTopFlit();
+					t_flit->set_vc(output_vc);
+					t_flit->advance_stage(LT_, Cur_Router->clockEdge(1)); // FIXME: time incorrect!!!
+					t_flit->set_time(Cur_Router->clockEdge(1));
+					m_smart_router_in_buffers[destRIndex]->insert(t_flit);
+					m_output_router_input_unit[destRIndex]->scheduleEventAbsolute(Cur_Router->clockEdge(1));
+					
+					vc_credits_for_smart_in_unit[destRIndex][output_vc] --;		
+					Cur_Router->m_smart_credit[smart_buffer_index] = vc_credits_for_smart_in_unit[destRIndex][output_vc];
+					
+					// update backward credit
+					InputUnit_d * iunit = Cur_Router->m_input_unit[inport_id];
+					assert(iunit != safe_cast<InputUnit_d>(Cur_Router->smart_input_unit) );
+					
+					if(t_flit->get_type() == TAIL_ ||  t_flit->get_type() == HEAD_TAIL_ )
+					{
+						iunit->increment_credit(vc_id, true,router_cycle);
+					}
+					else
+					{
+						iunit->increment_credit(vc_id, false,router_cycle);
+					}
+					
+					linkUsed = true;
+					break;
+				}
+			}	
+			
+			vc_id ++;
+			if(vc_id >= num_vcs) 
+			{
+				vc_id = 0;
+				inport_id ++;
+				if(inport_id >= Cur_Router->get_num_inports() )
+					inport_id = 0;
+			}
+		}
+		LA_last_vc_round_per_router[router_id] ++; // = vc_id
+		LA_last_inport_per_router[router_id] ++; // = inport_id
+		
+		
+		if(linkUsed)
+			break;
+		router_id ++;
+		if(router_id>=n_router)
+			router_id = 0;
+	}
+	LA_last_router_round ++; // next time start from the next router
+}
+void SMART_Coordinate::wakeup()
+{
+	
+	// vc arb
+	VCAllocate();
+	//link arb & tranverse
+	linkAllocte();	
+	
+	check_for_wakeup();
+}
+
+void SMART_Coordinate::check_for_wakeup()
+{
+	for(int r_iter = 0;r_iter < m_router_list.size(); r_iter++)
+	{
+		Cycles nextCycle = m_router_list[r_iter]->curCycle() + Cycles(1);
+		for(int vc_inport_iter=0; vc_inport_iter < m_router_list[r_iter]->get_num_inports() * num_vcs; vc_inport_iter++ )
+			if( m_router_list[r_iter]->m_smart_in_buffer[vc_inport_iter]->isReady(nextCycle) )
+			{	
+				m_router_list[r_iter]->smartLinkActivate();
+				return;
+			}
+	}
+}
+
+
