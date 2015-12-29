@@ -107,7 +107,7 @@ InputUnit_d::wakeup()
 			
 			m_router->smartLinkActivate();
 			
-			assert(inport_vc_index<m_router->m_smart_in_buffer.size() && inport_vc_index >= 0 )
+			assert(inport_vc_index<m_router->m_smart_in_buffer.size() && inport_vc_index >= 0 );
 			
 			m_router->m_smart_in_buffer[inport_vc_index]->insert(t_flit);
 		}
