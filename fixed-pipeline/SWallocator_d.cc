@@ -195,10 +195,10 @@ SWallocator_d::arbitrate_outports()
                         m_router->curCycle());
                     m_input_unit[inport]->set_enqueue_time(invc,
                         Cycles(INFINITE_));
-					if(inport == m_router->get_num_inports() - 1 )
+					/*if(inport == m_router->get_num_inports() - 1 )
 						{
 							inform("swallocate release of inport %d,vc:%d, r_id:%d ", inport,invc, m_router->getID());
-						}
+						}*/
                 } else {
                     // Send a credit back
                     // but do not indicate that the VC is idle

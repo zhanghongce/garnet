@@ -447,7 +447,7 @@ void SMART_Coordinate::linkAllocte()
 }
 void SMART_Coordinate::wakeup()
 {
-	inform("smart coor wakeup");
+	//inform("smart coor wakeup");
 	// vc arb
 	VCAllocate();
 	//link arb & tranverse
