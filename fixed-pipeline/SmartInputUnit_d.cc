@@ -58,13 +58,13 @@ SmartInputUnit_d::wakeup()
 		t_flit->advance_stage(LT_,m_router->curCycle() );
 		
         int vc = t_flit->get_vc();
-		/*
+		
 		t_flit->router_id_passed.push_back(m_router->getID());
 		t_flit->router_cycle_passed.push_back(m_router->curCycle());
 		cout<<"FLIT route:";
 		for(int i=0;i<t_flit->router_id_passed.size();i++)
 			cout<<"("<<t_flit->router_id_passed[i]<<" : "<<t_flit->router_cycle_passed[i]<<")\t";
-		cout<<endl;*/
+		cout<<endl;
 
 		if( t_flit->get_time() < m_router->curCycle() )
 			{
