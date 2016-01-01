@@ -32,6 +32,7 @@
 #include "mem/ruby/network/garnet/fixed-pipeline/InputUnit_d.hh"
 #include "mem/ruby/network/garnet/fixed-pipeline/Router_d.hh"
 #include "mem/ruby/network/garnet/fixed-pipeline/SMART_Coordinate.hh"
+#include "debug/SmartNoC.hh"
 
 
 using namespace std;
@@ -86,18 +87,18 @@ InputUnit_d::wakeup()
 
 		
         int vc = t_flit->get_vc();
-
+/*
 		t_flit->router_id_passed.push_back(m_router->getID());
 		t_flit->router_cycle_passed.push_back(m_router->curCycle());
 		cout<<"FLIT route:";
 		for(int i=0;i<t_flit->router_id_passed.size();i++)
 			cout<<"("<<t_flit->router_id_passed[i]<<" : "<<t_flit->router_cycle_passed[i]<<")\t";
-		cout<<endl;
+		cout<<endl;*/
 		
 		if( m_router->GetSmartCoordinate() && m_router->GetSmartCoordinate()->isSmartFlit(t_flit,m_router->getID(),m_id,vc) )
 		{
 			
-			inform("router %d, inputunit:%d, invc:%d, flit_id: %d, is_head:%d is inserted into smart_shadow_buffer",
+			DPRINTF(SmartNoC,"router %d, inputunit:%d, invc:%d, flit_id: %d, is_head:%d is inserted into smart_shadow_buffer",
 					m_router->getID(), m_id, vc, t_flit->get_id(), 
 					(t_flit->get_type()==HEAD_) || ( t_flit->get_type() == HEAD_TAIL_ )
 					);

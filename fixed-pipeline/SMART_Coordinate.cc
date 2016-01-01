@@ -36,9 +36,12 @@
 #include "mem/ruby/slicc_interface/AbstractController.hh"
 #include "mem/ruby/network/garnet/fixed-pipeline/SmartInputUnit_d.hh"
 #include "mem/ruby/network/garnet/fixed-pipeline/SMART_Coordinate.hh"
+#include "debug/SmartNoC.hh"
 
 using namespace std;
 using m5::stl_helpers::deletePointers;
+
+#define maxFlitPerCycle (4*m_router_list.size())
 
 SMART_Coordinate:: SMART_Coordinate(const Params *p)
     : ClockedObject(p),Consumer(this)
@@ -251,7 +254,7 @@ void SMART_Coordinate::VCAllocate()
 						Cur_Router->m_smart_credit[smart_buffer_index] = vc_credits_for_smart_in_unit[destRIndex][ovc_iter];
 						
 						// debug inform here
-						 inform("grant ovc:%d at DestId:%d to input:%d,vc:%d @srcID:%d", ovc_iter, 
+						 DPRINTF(SmartNoC,"grant ovc:%d at DestId:%d to input:%d,vc:%d @srcID:%d", ovc_iter, 
 							router_index_to_id(destRIndex), smart_buffer_index/num_vcs,
 							smart_buffer_index%num_vcs, router_index_to_id(router_id)
 							);
@@ -345,13 +348,13 @@ void inline SMART_Coordinate::sendAFlit(Router_d * Cur_Router, int inport_id, in
 	}
 	
 	
-	inform("Link Occupied to ovc:%d at DestId:%d by input:%d,vc:%d @srcID:%d", 
+	DPRINTF(SmartNoC,"Link Occupied to ovc:%d at DestId:%d by input:%d,vc:%d @srcID:%d", 
 			output_vc, router_index_to_id(destRIndex), 
 			smart_buffer_index/num_vcs,
 			smart_buffer_index%num_vcs, Cur_Router->getID()
 			);
 			
-	inform("flit_id: %d, is_head:%d, is_tail:%d is tranversing smart link",
+	DPRINTF(SmartNoC,"flit_id: %d, is_head:%d, is_tail:%d is tranversing smart link",
 	 t_flit->get_id(), (t_flit->get_type()==HEAD_) || ( t_flit->get_type() == HEAD_TAIL_ ),
 	 (t_flit->get_type()==TAIL_) || ( t_flit->get_type() == HEAD_TAIL_ )	); 
 }
@@ -411,7 +414,7 @@ void SMART_Coordinate::linkAllocte()
 						flit_sent ++;
 						
 						is_sent_vc = true;
-						break;
+						//break;
 					}
 				}	
 				
@@ -453,7 +456,7 @@ void SMART_Coordinate::linkAllocte()
 			linkWaitforVACycle ++;
 		}
 	}
-	assert(flit_sent<n_router*2);
+	assert(flit_sent<maxFlitPerCycle);
 	
 	FlitPerCycle[flit_sent] ++;
 	
@@ -517,10 +520,11 @@ void SMART_Coordinate::UpdateVC(uint32_t rID,int vc,bool isfree)
 
 void SMART_Coordinate::regStats()
 {
+	
 	linkIdleCycle.name(name()+".linkIdleCycle").flags(Stats::nonan);
 	linkWaitforVACycle.name(name()+".linkWaitforVACycle").flags(Stats::nonan);	
 	VC_contention.name(name() + ".VCContention").flags(Stats::nonan);
-	FlitPerCycle.init( m_router_list.size()*2 ).name(name() + ".cycles_with_diff_flits").flags(Stats::pdf | Stats::total | Stats::oneline);
+	FlitPerCycle.init( maxFlitPerCycle ).name(name() + ".cycles_with_diff_flits").flags(Stats::pdf | Stats::total | Stats::oneline);
 }
 
 SMART_Coordinate::~SMART_Coordinate()
