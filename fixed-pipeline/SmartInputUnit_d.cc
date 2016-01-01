@@ -57,7 +57,13 @@ SmartInputUnit_d::wakeup()
 		t_flit->advance_stage(LT_,m_router->curCycle() );
 		
         int vc = t_flit->get_vc();
-		
+
+		if( t_flit->get_time() < m_router->curCycle() )
+			{
+			warn("SMART UNIT:time discrepency: flit:%d, curTime:%d", t_flit->get_time(),m_router->curCycle());
+			if( m_router->curCycle() - t_flit->get_time() > 3)
+				fatal("SMART UNIT:Strong discrepency!");
+			}
 /*		
 		inform("router %d, smart_inputunit:%d, invc:%d, flit_id: %d, is_head:%d is received",
 					m_router->getID(), m_id, vc, t_flit->get_id(), 
