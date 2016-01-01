@@ -252,13 +252,14 @@ void SMART_Coordinate::VCAllocate()
 							);*/
 						
 						out_vc_found = true;
-						//break;
+						break;
 					}
 				}
 			}
 			
 			if( out_vc_found )
-				break;
+				//break
+				;
 			
 			vc_id ++;
 			if(vc_id >= num_vcs) 
