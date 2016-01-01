@@ -47,7 +47,7 @@ void
 SmartInputUnit_d::wakeup()
 {
     flit_d *t_flit; // here we get it directly from buffer not links
-    if (m_in_flit_buffer->isReady(m_router->curCycle())) {
+    while (m_in_flit_buffer->isReady(m_router->curCycle())) {
         t_flit = m_in_flit_buffer->getTopFlit();
 
 		if( t_flit->get_stage().first != SMART_LT_ )
