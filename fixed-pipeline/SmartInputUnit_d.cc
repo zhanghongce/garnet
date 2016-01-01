@@ -58,11 +58,24 @@ SmartInputUnit_d::wakeup()
 		
         int vc = t_flit->get_vc();
 		
-/*		
+		t_flit->router_id_passed.push_back(m_router->getID());
+		t_flit->router_cycle_passed.push_back(m_router->curCycle());
+		cout<<"FLIT route:";
+		for(int i=0;i<t_flit->router_id_passed.size();i++)
+			cout<<"("<<t_flit->router_id_passed[i]<<" : "<<t_flit->router_cycle_passed[i]<<")\t";
+		cout<<endl;
+
+		if( t_flit->get_time() < m_router->curCycle() )
+			{
+			warn("SMART UNIT:time discrepency: flit:%d, curTime:%d", t_flit->get_time(),m_router->curCycle());
+			if( m_router->curCycle() - t_flit->get_time() > 3)
+				fatal("SMART UNIT:Strong discrepency!");
+			}
+		
 		inform("router %d, smart_inputunit:%d, invc:%d, flit_id: %d, is_head:%d is received",
 					m_router->getID(), m_id, vc, t_flit->get_id(), 
 					(t_flit->get_type()==HEAD_) || ( t_flit->get_type() == HEAD_TAIL_ )  )
-					;*/
+					;
 					
 		if( smart_coor_pnt->isSmartFlit(t_flit,m_router->getID() ,m_id,vc) )
 		{
