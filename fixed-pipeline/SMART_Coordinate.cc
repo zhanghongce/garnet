@@ -252,13 +252,13 @@ void SMART_Coordinate::VCAllocate()
 							);*/
 						
 						out_vc_found = true;
-						//break;
+						break;
 					}
 				}
 			}
 			
-			if( out_vc_found )
-				break;
+			//if( out_vc_found )
+			//	break;
 			
 			vc_id ++;
 			if(vc_id >= num_vcs) 
@@ -302,17 +302,17 @@ bool SMART_Coordinate::waiting_for_VA_grant()
 	return false;
 }
 
-void inline SMART_Coordinate::sendAFlit(Router_d * Cur_Router, int inport_id, int vc_id, int smart_buffer_index) // only source specified, destination could be determined
+void inline SMART_Coordinate::sendAFlit(Router_d * Cur_Router, int inport_id, int vc_id, int smart_buffer_index, int delay) // only source specified, destination could be determined
 {
 	int destRIndex = Cur_Router->m_smart_dest_router_index[smart_buffer_index];
 	int output_vc = Cur_Router->m_smart_out_vc[smart_buffer_index];
 	
 	flit_d * t_flit = Cur_Router->m_smart_in_buffer[smart_buffer_index]->getTopFlit();
 	t_flit->set_vc(output_vc);
-	t_flit->advance_stage(SMART_LT_, curCycle()+Cycles(1) ); // FIXME: time incorrect!!!
-	t_flit->set_time( curCycle()+Cycles(1) );
+	t_flit->advance_stage(SMART_LT_, curCycle()+Cycles(delay) ); // FIXME: time incorrect!!!
+	t_flit->set_time( curCycle()+Cycles(delay) );
 	m_smart_router_in_buffers[destRIndex]->insert(t_flit);
-	m_output_router_input_unit[destRIndex]->scheduleEventAbsolute( curCycle()+Cycles(1) );
+	m_output_router_input_unit[destRIndex]->scheduleEventAbsolute( curCycle()+Cycles(delay) );
 	
 	vc_credits_for_smart_in_unit[destRIndex][output_vc] --;		
 	Cur_Router->m_smart_credit[smart_buffer_index] = vc_credits_for_smart_in_unit[destRIndex][output_vc];
@@ -352,7 +352,7 @@ void SMART_Coordinate::linkAllocte()
 	int router_id = LA_last_router_round;
 	int flit_sent = 0;
 	
-	vector<bool> linkOccupied(n_router,false);
+	//vector<bool> linkOccupied(n_router,false);
 	
 	for(int router_iter=0; router_iter<n_router; router_iter++)
 	{
@@ -380,12 +380,12 @@ void SMART_Coordinate::linkAllocte()
 				
 				Cur_Router->m_smart_credit[smart_buffer_index] = vc_credits_for_smart_in_unit[destRIndex][output_vc];
 				
-				if( Cur_Router->m_smart_credit[smart_buffer_index] > 0 && !intersect(linkOccupied,router_id,destRIndex) )
+				if( Cur_Router->m_smart_credit[smart_buffer_index] > 0 /*&& !intersect(linkOccupied,router_id,destRIndex) */ )
 				{
 					// ok to send
-					setOccupied(linkOccupied,router_id,destRIndex);
+					//setOccupied(linkOccupied,router_id,destRIndex);
 					
-					sendAFlit(Cur_Router, inport_id,vc_id, smart_buffer_index );
+					sendAFlit(Cur_Router, inport_id,vc_id, smart_buffer_index, 0 );
 					
 					flit_sent ++;
 					

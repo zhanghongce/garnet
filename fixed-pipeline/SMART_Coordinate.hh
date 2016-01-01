@@ -131,7 +131,7 @@ class SMART_Coordinate : public ClockedObject, public Consumer
 	int getSmartConfigIndexOfDestRoute(int rID, int &iter_post);
 	
 	// send a flit
-	void inline sendAFlit(Router_d * Cur_Router, int inport_id, int vc_id, int smart_buffer_index);
+	void inline sendAFlit(Router_d * Cur_Router, int inport_id, int vc_id, int smart_buffer_index,int delay);
 	
 	//stats
 	Stats::Scalar linkIdleCycle;
