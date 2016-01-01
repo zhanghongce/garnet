@@ -252,7 +252,7 @@ void SMART_Coordinate::VCAllocate()
 							);*/
 						
 						out_vc_found = true;
-						break;
+						//break;
 					}
 				}
 			}
