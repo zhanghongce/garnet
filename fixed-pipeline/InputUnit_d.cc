@@ -98,7 +98,7 @@ InputUnit_d::wakeup()
 		if( m_router->GetSmartCoordinate() && m_router->GetSmartCoordinate()->isSmartFlit(t_flit,m_router->getID(),m_id,vc) )
 		{
 			
-			DPRINTF(SmartNoC,"router %d, inputunit:%d, invc:%d, flit_id: %d, is_head:%d is inserted into smart_shadow_buffer",
+			DPRINTF(SmartNoC,"router %d, inputunit:%d, invc:%d, flit_id: %d, is_head:%d is inserted into smart_shadow_buffer\n",
 					m_router->getID(), m_id, vc, t_flit->get_id(), 
 					(t_flit->get_type()==HEAD_) || ( t_flit->get_type() == HEAD_TAIL_ )
 					);

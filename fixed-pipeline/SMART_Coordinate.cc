@@ -254,7 +254,7 @@ void SMART_Coordinate::VCAllocate()
 						Cur_Router->m_smart_credit[smart_buffer_index] = vc_credits_for_smart_in_unit[destRIndex][ovc_iter];
 						
 						// debug inform here
-						 DPRINTF(SmartNoC,"grant ovc:%d at DestId:%d to input:%d,vc:%d @srcID:%d", ovc_iter, 
+						 DPRINTF(SmartNoC,"grant ovc:%d at DestId:%d to input:%d,vc:%d @srcID:%d\n", ovc_iter, 
 							router_index_to_id(destRIndex), smart_buffer_index/num_vcs,
 							smart_buffer_index%num_vcs, router_index_to_id(router_id)
 							);
@@ -348,13 +348,13 @@ void inline SMART_Coordinate::sendAFlit(Router_d * Cur_Router, int inport_id, in
 	}
 	
 	
-	DPRINTF(SmartNoC,"Link Occupied to ovc:%d at DestId:%d by input:%d,vc:%d @srcID:%d", 
+	DPRINTF(SmartNoC,"Link Occupied to ovc:%d at DestId:%d by input:%d,vc:%d @srcID:%d\n", 
 			output_vc, router_index_to_id(destRIndex), 
 			smart_buffer_index/num_vcs,
 			smart_buffer_index%num_vcs, Cur_Router->getID()
 			);
 			
-	DPRINTF(SmartNoC,"flit_id: %d, is_head:%d, is_tail:%d is tranversing smart link",
+	DPRINTF(SmartNoC,"flit_id: %d, is_head:%d, is_tail:%d is tranversing smart link\n",
 	 t_flit->get_id(), (t_flit->get_type()==HEAD_) || ( t_flit->get_type() == HEAD_TAIL_ ),
 	 (t_flit->get_type()==TAIL_) || ( t_flit->get_type() == HEAD_TAIL_ )	); 
 }
@@ -409,7 +409,7 @@ void SMART_Coordinate::linkAllocte()
 						// ok to send
 						//setOccupied(linkOccupied,router_id,destRIndex);
 						
-						sendAFlit(Cur_Router, inport_id,vc_id, smart_buffer_index, 1 );
+						sendAFlit(Cur_Router, inport_id,vc_id, smart_buffer_index, abs(destRIndex-router_id)+1 );
 						
 						flit_sent ++;
 						

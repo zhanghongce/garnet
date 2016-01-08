@@ -73,11 +73,13 @@ SmartInputUnit_d::wakeup()
 				fatal("SMART UNIT:Strong discrepency!");
 			}
 		
-		DPRINTF(SmartNoC,"router %d, smart_inputunit:%d, invc:%d, flit_id: %d, is_head:%d is received",
+		DPRINTF(SmartNoC,"router %d, smart_inputunit:%d, invc:%d, flit_id: %d, is_head:%d is received\n",
 					m_router->getID(), m_id, vc, t_flit->get_id(), 
 					(t_flit->get_type()==HEAD_) || ( t_flit->get_type() == HEAD_TAIL_ )  )
 					;
-					
+		if( t_flit->get_time() - t_flit->router_cycle_passed[0] > 20 )
+			//fatal("Tranverse too long!")
+			;
 		if( smart_coor_pnt->isSmartFlit(t_flit,m_router->getID() ,m_id,vc) )
 		{
 			warn("sending smart flit to smart link again!");
