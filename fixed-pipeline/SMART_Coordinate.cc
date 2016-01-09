@@ -182,6 +182,7 @@ void SMART_Coordinate::init()
 	linkWaitforVACycle = 0;
 	VC_contention = 0;
 	Credit_Notenough = 0;
+	LinkConflict = 0;
 		
 }
 // this depends on the number of input units
@@ -370,8 +371,14 @@ void SMART_Coordinate::linkAllocte()
 	
 	int router_id = LA_last_router_round;
 	int flit_sent = 0;
+
+	int num_smartLink = 4;
+	vector<vector<bool> * > linkOccupiedList;
+	linkOccupiedList.resize(num_smartLink);
+	for(int lkOiter = 0;lkOiter<num_smartLink;++lkOiter)
+		linkOccupiedList[lkOiter] = new vector<bool>(n_router,false);
 	
-	vector<bool> linkOccupied(n_router,false);
+	//vector<bool> linkOccupied(n_router,false);
 	
 	bool is_sent_router = false;
 	bool is_sent_inport = false;
@@ -408,10 +415,11 @@ void SMART_Coordinate::linkAllocte()
 					
 					Cur_Router->m_smart_credit[smart_buffer_index] = vc_credits_for_smart_in_unit[destRIndex][output_vc];
 					
-					if( Cur_Router->m_smart_credit[smart_buffer_index] > 0 && !intersect(linkOccupied,router_id,destRIndex) )
+					if( Cur_Router->m_smart_credit[smart_buffer_index] > 0 
+						&& !intersect_group(linkOccupiedList,router_id,destRIndex,num_smartLink) )
 					{
 						// ok to send
-						setOccupied(linkOccupied,router_id,destRIndex);
+						setOccupied_group(linkOccupiedList,router_id,destRIndex,num_smartLink);
 						
 						sendAFlit(Cur_Router, inport_id,vc_id, smart_buffer_index );
 						
@@ -422,6 +430,8 @@ void SMART_Coordinate::linkAllocte()
 					}
 					else if ( Cur_Router->m_smart_credit[smart_buffer_index]  <= 0)
 						Credit_Notenough ++;
+					else if (intersect_group(linkOccupiedList,router_id,destRIndex,num_smartLink) )
+						LinkConflict ++;
 				}	 // find a 
 			
 				vc_id = (vc_id + 1)%num_vcs;
@@ -464,6 +474,10 @@ void SMART_Coordinate::linkAllocte()
 	LA_last_router_round ++; // next time start from the next router // = router_id
 	if(LA_last_router_round >= m_router_list.size() )
 		LA_last_router_round = 0;
+
+	
+	for(int lkOiter = 0;lkOiter<num_smartLink;++lkOiter)
+		delete linkOccupiedList[lkOiter];
 
 }
 void SMART_Coordinate::wakeup()
@@ -525,6 +539,7 @@ void SMART_Coordinate::regStats()
 	VC_contention.name(name() + ".VCContention").flags(Stats::nonan);
 	Credit_Notenough.name(name()+".Credit_notEnough").flags(Stats::nonan);
 	FlitPerCycle.init( m_router_list.size()*2 ).name(name() + ".cycles_with_diff_flits").flags(Stats::pdf | Stats::total | Stats::oneline);
+	LinkConflict.name( name() + ".LinkConflict").flags(Stats::nonan);
 }
 
 SMART_Coordinate::~SMART_Coordinate()
@@ -534,11 +549,15 @@ SMART_Coordinate::~SMART_Coordinate()
 }
 
 
-bool SMART_Coordinate::intersect(vector<bool> linkOccupied, int srcIndex, int destIndex)
+bool SMART_Coordinate::intersect(const vector<bool> & linkOccupied, int srcIndex, int destIndex)
 {
 	assert(srcIndex  >=0 && srcIndex  < linkOccupied.size() );
 	assert(destIndex >=0 && destIndex < linkOccupied.size() );	
-	for (int iter = min(srcIndex,destIndex) ; iter <= max(srcIndex,destIndex); ++iter)
+	
+	int min_id = srcIndex<destIndex ? srcIndex : destIndex;
+	int max_id = srcIndex<destIndex ? destIndex : srcIndex;
+	
+	for (int iter = min_id ; iter <= max_id; ++iter)
 	{
 		if( linkOccupied[iter] )
 			return true;
@@ -546,16 +565,41 @@ bool SMART_Coordinate::intersect(vector<bool> linkOccupied, int srcIndex, int de
 	return false;
 }
 
-void SMART_Coordinate::setOccupied( vector<bool> linkOccupied, int srcIndex, int destIndex )
+void SMART_Coordinate::setOccupied( vector<bool> & linkOccupied, int srcIndex, int destIndex )
 {
 	assert(srcIndex  >=0 && srcIndex  < linkOccupied.size() );
 	assert(destIndex >=0 && destIndex < linkOccupied.size() );	
-	for (int iter = min(srcIndex,destIndex) ; iter <= max(srcIndex,destIndex); ++iter)
+	int min_id = srcIndex<destIndex ? srcIndex : destIndex;
+	int max_id = srcIndex<destIndex ? destIndex : srcIndex;
+	for (int iter = min_id ; iter <= max_id; ++iter)
 	{
 		assert( !linkOccupied[iter] );
 		linkOccupied[iter] = true;
 	}
 }
+
+void SMART_Coordinate::setOccupied_group(std::vector<std::vector<bool> *> &  linkOccupiedL,int srcIndex,int destIndex,int Nsmartlink)
+{
+	for(int i=0;i<Nsmartlink;i++)
+		{
+			if(!intersect(*linkOccupiedL[i],srcIndex,destIndex)) {
+				setOccupied(*linkOccupiedL[i],srcIndex,destIndex);
+				break;
+			}
+		}
+}
+bool SMART_Coordinate::intersect_group(const std::vector<std::vector<bool> *> &  linkOccupiedL,int srcIndex,int destIndex,int Nsmartlink)
+{
+	
+	for(int i=0;i<Nsmartlink;i++)
+		{ // if there is at least one free, then it is free
+			if(!intersect(*linkOccupiedL[i],srcIndex,destIndex)) {
+				return false;
+			}
+		}
+	return true; // else it is surely to be occupied
+}
+	
 
 
 SMART_Coordinate* 

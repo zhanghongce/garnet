@@ -139,12 +139,18 @@ class SMART_Coordinate : public ClockedObject, public Consumer
 	Stats::Vector FlitPerCycle;
 	Stats::Scalar Credit_Notenough;
 	Stats::Scalar VC_contention;
+	Stats::Scalar LinkConflict;
 	
 	bool waiting_for_VA_grant();
 	// helper functions
 	
-	void setOccupied( std::vector<bool> linkOccupied, int srcIndex, int destIndex );
-	bool intersect( std::vector<bool> linkOccupied, int srcIndex, int destIndex);
+	void setOccupied( std::vector<bool> & linkOccupied, int srcIndex, int destIndex );
+	bool intersect( const std::vector<bool> & linkOccupied, int srcIndex, int destIndex);
+
+	void setOccupied_group(std::vector<std::vector<bool> *> &  linkOccupiedL,int srcIndex,int destIndex,int Nsmartlink);
+	bool intersect_group(const std::vector<std::vector<bool> *> &  linkOccupiedL,int srcIndex,int destIndex,int Nsmartlink);
+	
+	
 };
 
 #endif // __MEM_RUBY_NETWORK_GARNET_FIXED_PIPELINE_SMART_COORDINATE_HH__
