@@ -36,6 +36,8 @@
 #include "mem/ruby/slicc_interface/AbstractController.hh"
 #include "mem/ruby/network/garnet/fixed-pipeline/SmartInputUnit_d.hh"
 #include "mem/ruby/network/garnet/fixed-pipeline/SMART_Coordinate.hh"
+#include "debug/SmartNoC.hh"
+
 
 using namespace std;
 using m5::stl_helpers::deletePointers;
@@ -178,15 +180,16 @@ void SMART_Coordinate::init()
 	// nothing need to do, except initalizin stats
 	linkIdleCycle = 0;
 	linkWaitforVACycle = 0;
-	
-	
+	VC_contention = 0;
+	Credit_Notenough = 0;
+		
 }
 // this depends on the number of input units
 void SMART_Coordinate::init(uint32_t routerID, GarnetNetwork_d *Network_ptr) // called by each router to allocate its arb resources
 {
 	
 	int routerIndex = router_id_to_index(routerID);
-	//Router_d * CurRouter = m_router_list[ routerIndex ];
+	Router_d * CurRouter = m_router_list[ routerIndex ];
 	//m_smart_router_in_buffers[ routerIndex ] already initialized in global_make_link
 	
 	//inform("SMART_Coor: router %d init with index %d",routerID,routerIndex);
@@ -205,7 +208,9 @@ void SMART_Coordinate::init(uint32_t routerID, GarnetNetwork_d *Network_ptr) // 
 	VCA_last_inport_per_router[routerIndex] = 0;
 	VCA_last_vc_round_per_router[routerIndex] = 0;
 	
-	LA_last_vc_round_per_router[routerIndex] = 0;
+	LA_last_vc_round_per_router[routerIndex].resize(CurRouter->get_num_inports()) ;
+	for(int iport_iter=0;iport_iter<CurRouter->get_num_inports();iport_iter++)
+		LA_last_vc_round_per_router[routerIndex][iport_iter] = 0;
 	LA_last_inport_per_router[routerIndex] = 0;
 	//FIXME:
 }
@@ -215,6 +220,8 @@ void SMART_Coordinate::VCAllocate()
 	int n_router = m_router_list.size();
 	
 	int router_id = VCA_last_router_round;
+	
+	// for every router grant one vc
 	for(int router_iter=0;router_iter<n_router;router_iter++)
 	{
 		Router_d * Cur_Router = m_router_list[router_id];
@@ -228,11 +235,13 @@ void SMART_Coordinate::VCAllocate()
 		{
 			
 			int smart_buffer_index = inport_id * num_vcs + vc_id;
-			bool out_vc_found = false;
+			bool vc_grant_for_this_inport = false;
 			// choose a grant need
 			if(Cur_Router->m_smart_state[smart_buffer_index] == smart_vc_wait_for_vc_grant)
 			{
 				// choose an out vc
+				bool out_vc_found = false;
+				
 				int destRIndex = Cur_Router->m_smart_dest_router_index[smart_buffer_index];
 				int o_vnet = get_vnet(vc_id);
 				for(int ovc_iter = o_vnet*num_vcs_per_vnet;ovc_iter <o_vnet*num_vcs_per_vnet + num_vcs_per_vnet;ovc_iter++)
@@ -246,20 +255,25 @@ void SMART_Coordinate::VCAllocate()
 						Cur_Router->m_smart_credit[smart_buffer_index] = vc_credits_for_smart_in_unit[destRIndex][ovc_iter];
 						
 						// debug inform here
-						/* inform("grant ovc:%d at DestId:%d to input:%d,vc:%d @srcID:%d", ovc_iter, 
+						DPRINTF(SmartNoC,"grant ovc:%d at DestId:%d to input:%d,vc:%d @srcID:%d\n", ovc_iter, 
 							router_index_to_id(destRIndex), smart_buffer_index/num_vcs,
 							smart_buffer_index%num_vcs, router_index_to_id(router_id)
-							);*/
+							);
 						
 						out_vc_found = true;
 						break;
 					}
+				}	// end of finding output vc
+				
+				if( out_vc_found ) 
+				{
+					vc_grant_for_this_inport = true;
+					break;
 				}
-			}
-			
-			if( out_vc_found )
-				//break
-				;
+				else
+					VC_contention ++ ;
+				
+			}	// end, it is grant_needed
 			
 			vc_id ++;
 			if(vc_id >= num_vcs) 
@@ -269,7 +283,11 @@ void SMART_Coordinate::VCAllocate()
 				if(inport_id >= Cur_Router->get_num_inports() )
 					inport_id = 0;
 			}
+			
+			if(vc_grant_for_this_inport)
+				break;
 		}
+		
 		VCA_last_vc_round_per_router[router_id] ++; // = vc_id
 		VCA_last_inport_per_router[router_id] ++; // = inport_id
 		if(VCA_last_vc_round_per_router[router_id] >= num_vcs )
@@ -283,7 +301,7 @@ void SMART_Coordinate::VCAllocate()
 		router_id ++;
 		if(router_id>=n_router)
 			router_id = 0;
-	}
+	} // end of finding a router 
 	VCA_last_router_round ++; // next time start from the next router
 	if(VCA_last_router_round >= m_router_list.size() )
 		VCA_last_router_round = 0;
@@ -355,6 +373,10 @@ void SMART_Coordinate::linkAllocte()
 	
 	vector<bool> linkOccupied(n_router,false);
 	
+	bool is_sent_router = false;
+	bool is_sent_inport = false;
+	bool is_sent_vc		= false;
+	
 	for(int router_iter=0; router_iter<n_router; router_iter++)
 	{
 		Router_d * Cur_Router = m_router_list[router_id];
@@ -363,70 +385,68 @@ void SMART_Coordinate::linkAllocte()
 		if( self_cycle != router_cycle )
 			fatal("Smart Coordinate cycle mismatch between smart and router!");
 		
-		
-		int vc_id = LA_last_vc_round_per_router[router_id];
-		int inport_id = LA_last_inport_per_router[router_id];
+		int inport_id = LA_last_inport_per_router[router_id] % Cur_Router->get_num_inports();
 		int total_fb_num = Cur_Router->m_smart_in_buffer.size(); // num_vcs * router's inport # // we need to assert this somewhere
+		is_sent_inport = false;
 		
-		for(int vc_iport_iter = 0;vc_iport_iter < total_fb_num;vc_iport_iter ++)
+		for(int inport_iter=0;inport_iter<Cur_Router->get_num_inports();inport_iter++)
 		{
-			
-			int smart_buffer_index = inport_id * num_vcs + vc_id;
-			// choose a grant need
-			if(Cur_Router->m_smart_state[smart_buffer_index] == smart_vc_granted && ! Cur_Router->m_smart_in_buffer[smart_buffer_index]->isEmpty())
+			int vc_id = LA_last_vc_round_per_router[router_id][inport_id];
+			is_sent_vc = false;
+			for(int vc_iter=0;vc_iter<num_vcs;vc_iter++)
 			{
-				// update smart_In_unit_credit
-				int output_vc = Cur_Router->m_smart_out_vc[smart_buffer_index];
-				int destRIndex = Cur_Router->m_smart_dest_router_index[smart_buffer_index];
 				
-				Cur_Router->m_smart_credit[smart_buffer_index] = vc_credits_for_smart_in_unit[destRIndex][output_vc];
-				
-				if( Cur_Router->m_smart_credit[smart_buffer_index] > 0 && !intersect(linkOccupied,router_id,destRIndex) )
+				int smart_buffer_index = inport_id * num_vcs + vc_id;
+				assert(total_fb_num>smart_buffer_index);
+
+				// choose a grant need
+				if(Cur_Router->m_smart_state[smart_buffer_index] == smart_vc_granted && ! Cur_Router->m_smart_in_buffer[smart_buffer_index]->isEmpty())
 				{
-					// ok to send
-					setOccupied(linkOccupied,router_id,destRIndex);
+					// update smart_In_unit_credit
+					int output_vc = Cur_Router->m_smart_out_vc[smart_buffer_index];
+					int destRIndex = Cur_Router->m_smart_dest_router_index[smart_buffer_index];
 					
-					sendAFlit(Cur_Router, inport_id,vc_id, smart_buffer_index );
+					Cur_Router->m_smart_credit[smart_buffer_index] = vc_credits_for_smart_in_unit[destRIndex][output_vc];
 					
-					flit_sent ++;
-					
-					break;
-				}
-			}	
+					if( Cur_Router->m_smart_credit[smart_buffer_index] > 0 && !intersect(linkOccupied,router_id,destRIndex) )
+					{
+						// ok to send
+						setOccupied(linkOccupied,router_id,destRIndex);
+						
+						sendAFlit(Cur_Router, inport_id,vc_id, smart_buffer_index );
+						
+						flit_sent ++;
+						
+						is_sent_vc = true;
+						break; // end of the in_vc selection
+					}
+					else if ( Cur_Router->m_smart_credit[smart_buffer_index]  <= 0)
+						Credit_Notenough ++;
+				}	 // find a 
 			
-			vc_id ++;
-			if(vc_id >= num_vcs) 
-			{
-				vc_id = 0;
-				inport_id ++;
-				if(inport_id >= Cur_Router->get_num_inports() )
-					inport_id = 0;
-			}
-		}
-	#ifdef	THE_OTHER_VA_METHOD
-		LA_last_vc_round_per_router[router_id] ++; // = vc_id + 1
-		LA_last_inport_per_router[router_id] ++; // = inport_id
-		if(LA_last_vc_round_per_router[router_id] >= num_vcs )
-			{
-				LA_last_vc_round_per_router[router_id] = 0;
-			}
-		if(LA_last_inport_per_router[router_id] >= Cur_Router->get_num_inports() )
-			LA_last_inport_per_router[router_id] = 0;
-	#else
-		/*
-		warn("changing LA_last_vc_round_per_router[%d] %d -> %d",router_id, LA_last_vc_round_per_router[router_id], vc_id + 2);
-		warn("changing LA_last_inport_per_router  [%d] %d -> %d",router_id, LA_last_inport_per_router  [router_id], inport_id);
-		*/
-		LA_last_vc_round_per_router[router_id] = vc_id + 2;
-		if(LA_last_vc_round_per_router[router_id] >= num_vcs)
-			LA_last_vc_round_per_router[router_id] = 0;
-		LA_last_inport_per_router[router_id] = inport_id;
-	#endif		
+				vc_id = (vc_id + 1)%num_vcs;
+			} // end of vc iteration
+			
+			if(is_sent_vc)
+				is_sent_inport = true;
+			
+			LA_last_vc_round_per_router[router_id][inport_id] = (LA_last_vc_round_per_router[router_id][inport_id]+1)%num_vcs;
+			inport_id = (inport_id+1)%Cur_Router->get_num_inports();
+		}// end of inport iteration
+		
+		if( is_sent_inport)
+			is_sent_router = true;
+			
+		LA_last_inport_per_router[router_id] = ( LA_last_inport_per_router[router_id] + 1 ) % Cur_Router->get_num_inports();
 		
 		router_id ++;
 		if(router_id>=n_router)
 			router_id = 0;
-	}
+	}// end of router iteration
+	
+	if( (is_sent_router && flit_sent == 0) || (!is_sent_router && flit_sent != 0) )
+		fatal("Metrics mismatch!");
+	
 	if(flit_sent == 0)
 	{
 		// stats: +1
@@ -502,6 +522,8 @@ void SMART_Coordinate::regStats()
 {
 	linkIdleCycle.name(name()+".linkIdleCycle").flags(Stats::nonan);
 	linkWaitforVACycle.name(name()+".linkWaitforVACycle").flags(Stats::nonan);	
+	VC_contention.name(name() + ".VCContention").flags(Stats::nonan);
+	Credit_Notenough.name(name()+".Credit_notEnough").flags(Stats::nonan);
 	FlitPerCycle.init( m_router_list.size()*2 ).name(name() + ".cycles_with_diff_flits").flags(Stats::pdf | Stats::total | Stats::oneline);
 }
 
@@ -541,3 +563,29 @@ SMART_CoordinateParams::create()
 {
     return new SMART_Coordinate(this);
 }
+
+
+/*
+
+
+	#ifdef	THE_OTHER_VA_METHOD
+		LA_last_vc_round_per_router[router_id] ++; // = vc_id + 1
+		LA_last_inport_per_router[router_id] ++; // = inport_id
+		if(LA_last_vc_round_per_router[router_id] >= num_vcs )
+			{
+				LA_last_vc_round_per_router[router_id] = 0;
+			}
+		if(LA_last_inport_per_router[router_id] >= Cur_Router->get_num_inports() )
+			LA_last_inport_per_router[router_id] = 0;
+	#else
+		
+		warn("changing LA_last_vc_round_per_router[%d] %d -> %d",router_id, LA_last_vc_round_per_router[router_id], vc_id + 2);
+		warn("changing LA_last_inport_per_router  [%d] %d -> %d",router_id, LA_last_inport_per_router  [router_id], inport_id);
+		
+		LA_last_vc_round_per_router[router_id] = vc_id + 2;
+		if(LA_last_vc_round_per_router[router_id] >= num_vcs)
+			LA_last_vc_round_per_router[router_id] = 0;
+		LA_last_inport_per_router[router_id] = inport_id;
+	#endif		
+	
+*/

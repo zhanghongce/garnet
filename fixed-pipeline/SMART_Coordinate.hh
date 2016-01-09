@@ -120,7 +120,7 @@ class SMART_Coordinate : public ClockedObject, public Consumer
 		
 	// here is for link arb
 	int LA_last_router_round;
-	std::vector<int> LA_last_vc_round_per_router;
+	std::vector<std::vector<int> > LA_last_vc_round_per_router;
 	std::vector<int> LA_last_inport_per_router;
 	void linkAllocte();
 	
@@ -137,6 +137,9 @@ class SMART_Coordinate : public ClockedObject, public Consumer
 	Stats::Scalar linkIdleCycle;
 	Stats::Scalar linkWaitforVACycle;
 	Stats::Vector FlitPerCycle;
+	Stats::Scalar Credit_Notenough;
+	Stats::Scalar VC_contention;
+	
 	bool waiting_for_VA_grant();
 	// helper functions
 	

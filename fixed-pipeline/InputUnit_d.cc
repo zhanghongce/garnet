@@ -108,7 +108,8 @@ InputUnit_d::wakeup()
 			m_router->smartLinkActivate();
 			
 			assert(inport_vc_index<m_router->m_smart_in_buffer.size() && inport_vc_index >= 0 );
-			
+
+			t_flit->set_time(m_router->curCycle());
 			m_router->m_smart_in_buffer[inport_vc_index]->insert(t_flit);
 		}
 		else

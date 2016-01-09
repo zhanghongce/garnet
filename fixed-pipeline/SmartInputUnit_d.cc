@@ -50,6 +50,9 @@ SmartInputUnit_d::wakeup()
     while (m_in_flit_buffer->isReady(m_router->curCycle())) {
         t_flit = m_in_flit_buffer->getTopFlit();
 
+ 		if(m_in_flit_buffer->isReady(m_router->curCycle()))
+			warn("multiple filt arrive at the same SmartInput-port!");
+	
 		if( t_flit->get_stage().first != SMART_LT_ )
 			fatal("Smart Input unit connected to normal link !");
 
