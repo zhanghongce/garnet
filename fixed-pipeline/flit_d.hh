@@ -89,10 +89,10 @@ class flit_d
     }
 
     bool functionalWrite(Packet *pkt);
-	
+	/*
 	std::vector<int> router_id_passed;
 	std::vector<Cycles> router_cycle_passed;
-
+*/
   private:
     int m_id;
     int m_vnet;

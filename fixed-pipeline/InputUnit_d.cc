@@ -86,7 +86,7 @@ InputUnit_d::wakeup()
 
 		
         int vc = t_flit->get_vc();
-		
+		/*
 		t_flit->router_id_passed.push_back(m_router->getID());
 				t_flit->router_cycle_passed.push_back(m_router->curCycle());
 				if(m_router->curCycle()-t_flit->router_cycle_passed[0]>20) {
@@ -94,7 +94,7 @@ InputUnit_d::wakeup()
 				for(int i=0;i<t_flit->router_id_passed.size();i++)
 					cout<<"("<<t_flit->router_id_passed[i]<<" : "<<t_flit->router_cycle_passed[i]<<")\t";
 				cout<<endl;
-					}
+					}*/
 
 
 		if( m_router->GetSmartCoordinate() && m_router->GetSmartCoordinate()->isSmartFlit(t_flit,m_router->getID(),m_id,vc) )
