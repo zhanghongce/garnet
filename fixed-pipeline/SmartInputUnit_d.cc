@@ -50,15 +50,16 @@ SmartInputUnit_d::wakeup()
     while (m_in_flit_buffer->isReady(m_router->curCycle())) {
         t_flit = m_in_flit_buffer->getTopFlit();
 
-/*
+
 		t_flit->router_id_passed.push_back(m_router->getID());
 				t_flit->router_cycle_passed.push_back(m_router->curCycle());
-				if(m_router->curCycle()-t_flit->router_cycle_passed[0]>25) {
-				cout<<"FLIT route:";
+				if(1) {
+				cout<<"-S- FLIT route:";
 				for(int i=0;i<t_flit->router_id_passed.size();i++)
 					cout<<"("<<t_flit->router_id_passed[i]<<" : "<<t_flit->router_cycle_passed[i]<<")\t";
 				cout<<endl;
 					}
+				/*
 
 
  		if(m_in_flit_buffer->isReady(m_router->curCycle())) {

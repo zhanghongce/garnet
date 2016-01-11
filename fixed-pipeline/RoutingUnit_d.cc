@@ -82,6 +82,13 @@ RoutingUnit_d::routeCompute(flit_d *t_flit)
     }
 
     if (output_link == -1) {
+		std::vector<unsigned int> dest = msg_destination.getAllDest();
+		std::cout<<"SRC:"<<m_router->getID()<<" Dest :"<<dest[0]<<" is not found"<<std::endl;
+		std::cout<<"routing_table DUMP:"<<std::endl;
+
+		for(int i=0;i<m_routing_table.size();i++)
+			std::cout<<m_routing_table[i]<<std::endl;
+		
         fatal("Fatal Error:: No Route exists from this Router.");
         exit(0);
     }
